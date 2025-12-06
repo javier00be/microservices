@@ -17,7 +17,12 @@ model Product{
   id          Int      @id @default(autoincrement())
   name        String
   description String? 
+  available   Boolean @default(true) //este es el estado si esta activo el producto
   price       Float
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+
+  @@index([available])
 }
+
+
