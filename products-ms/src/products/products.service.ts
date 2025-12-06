@@ -1,4 +1,4 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit, NotFoundException } from '@nestjs/common';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { PrismaClient } from '@prisma/client';
@@ -8,8 +8,8 @@ import { PaginationDto } from 'src/common';
 export class ProductsService extends PrismaClient implements OnModuleInit {
   private readonly logger = new Logger('ProductsService');
 
-  onModuleInit() {
-    this.$connect();
+  async onModuleInit() {
+    await this.$connect();
     this.logger.log('Connected to the database');
   }
 
@@ -20,40 +20,47 @@ export class ProductsService extends PrismaClient implements OnModuleInit {
   }
 
   async findAll(paginationDto: PaginationDto) {
-    const { page , limit } = paginationDto;
+    const { page = 1, limit = 10 } = paginationDto;
 
-    const totalPage = await this.product.count({where: {available: true}});
-    const lastPage = Math.ceil(totalPage / limit);
+    const pageNum = Math.max(1, page);
+    const take = Math.max(1, limit);
 
-    return{
-      data : await this.product.findMany({
-        skip: (page - 1) * limit,
-        take: limit,
-        where: {available: true}
-      }),
-      meta:{
-        total: totalPage,
-        page: page,
-        lastPage: lastPage,
-      }
-    } 
+    const total = await this.product.count({ where: { available: true } });
+    const lastPage = Math.ceil(total / take) || 1;
+
+    const data = await this.product.findMany({
+      skip: (pageNum - 1) * take,
+      take,
+      where: { available: true },
+    });
+
+    return {
+      data,
+      meta: {
+        total,
+        page: pageNum,
+        lastPage,
+      },
+    };
   }
 
   async findOne(id: number) {
-    const product =  this.product.findUnique({
+    const product = await this.product.findFirst({
       where: { id, available: true },
     });
 
-    if(!product){
-      throw new Error(`Product with ID ${id} not found`);
+    if (!product) {
+      throw new NotFoundException(`Product with ID ${id} not found`);
     }
+
     return product;
   }
 
   async update(id: number, updateProductDto: UpdateProductDto) {
+    const {id: _, ...data} = updateProductDto;
     return this.product.update({
       where: { id },
-      data: updateProductDto
+      data: data
     });
   }
 
